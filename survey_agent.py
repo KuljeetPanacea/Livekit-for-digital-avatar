@@ -87,7 +87,7 @@ class QuestionnaireAgent(Agent):
         }
 
         print("\n📤 Sending to backend:", payload)
-        url = "http://13.126.133.4:8001/response"
+        url = "https://13.126.133.4:8001/response"
         #return {'response': [{'content': 'Hybrid.', 'intent': 'Good Response', 'role': 'user'}, {'content': 'Hybrid.', 'intent': 'Select and proceed', 'role': 'assistant'}]}
         async with aiohttp.ClientSession() as session:
             async with session.post(url, json=payload) as resp:
@@ -156,7 +156,8 @@ class QuestionnaireAgent(Agent):
         
         print("📤 Sending /save-response payload:", saveresponsePayload)
         
-        SaveUrl = "http://13.126.133.4:8000/api/project/userresponse"
+        # SaveUrl = "https://13.126.133.4:8000/api/project/userresponse"
+        SaveUrl = "https://pi-audit-app.radpretation.ai/api/api/project/userresponse"
         auth_token = load_token()
         headers = {
             "Authorization": f"Bearer {auth_token}",
@@ -183,7 +184,7 @@ class QuestionnaireAgent(Agent):
 
         evaluate_url = os.getenv(
             "QUESTIONNAIRE_EVALUATE_URL",
-            "http://13.126.133.4:8000/api/assesment-task/evaluate"
+            "https://pi-audit-app.radpretation.ai/api/api/assesment-task/evaluate"
         )
         
         # Call NEXT QUESTION API
@@ -341,9 +342,9 @@ if __name__ == "__main__":
     agents.cli.run_app(
         agents.WorkerOptions(
             entrypoint_fnc=entrypoint,
-            ws_url=os.getenv("LIVEKIT_WS_URL", "wss://cloud.livekit.io"),
-            api_key=os.getenv("LIVEKIT_API_KEY", "LK-API-KEY"),
-            api_secret=os.getenv("LIVEKIT_API_SECRET", "LK-API-SECRET"),
+            ws_url="wss://voicetest-lzl976kv.livekit.cloud",
+            api_key="API7kNixTJ6heAg",
+            api_secret="P6oxdtEtLwcUodBsziSl0JN685FNXVzjeeplBkuWAUd",
             # CRITICAL: Tell agent to join rooms automatically
            
         )

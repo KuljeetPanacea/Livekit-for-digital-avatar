@@ -23,9 +23,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-LIVEKIT_URL = os.getenv("LIVEKIT_URL", "https://cloud.livekit.io")
-API_KEY = os.getenv("LIVEKIT_API_KEY", "API7kNixTJ6heAg")
-API_SECRET = os.getenv("LIVEKIT_API_SECRET", "P6oxdtEtLwcUodBsziSl0JN685FNXVzjeeplBkuWAUd")
+LIVEKIT_URL = "https://voicetest-lzl976kv.livekit.cloud"
+API_KEY = "API7kNixTJ6heAg"
+API_SECRET = "P6oxdtEtLwcUodBsziSl0JN685FNXVzjeeplBkuWAUd"
 
 
 # --------------------------------------------------
