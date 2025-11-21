@@ -1,0 +1,125 @@
+{
+  "id": "691c45c24b34d01dcc0ad33a",
+  "title": "Livekit",
+  "description": "testing",
+  "complianceType": "PCIDSS V4.0",
+  "industrySize": "Small",
+  "industryType": "Banking",
+  "phase": "Scoping",
+  "deviceType": "",
+  "isDeleted": false,
+  "isPublished": true,
+  "status": "Published",
+  "tenantId": "680725c1dc81c92ab815af8c",
+  "createdBy": "6821c3f81a70afc7945bb020",
+  "updatedBy": "6821c3f81a70afc7945bb020",
+  "createDtTime": "2025-11-18T10:09:06.761Z",
+  "updateDtTime": "2025-11-20T09:49:56.171Z",
+  "currentQuestionTracker": null,
+  "isCompletedAllQuestions": null,
+  "__v": 13,
+  "questions": [
+    {
+      "_id": "691c45f14b34d01dcc0ad353",
+      "questionnaireId": "691c45c24b34d01dcc0ad33a",
+      "type": "multiple_choice",
+      "text": "What kind of business do you have?",
+      "choices": [
+        {
+          "value": "Hybrid"
+        },
+        {
+          "value": "Online"
+        }
+      ],
+      "isEditing": false,
+      "isDeleted": false,
+      "requirements": null,
+      "subRequirements": null,
+      "subControl": null,
+      "userResponse": [
+        "Hybrid"
+      ],
+      "alwaysGoTo": "",
+      "setting": {},
+      "branchingLogic": [
+        {
+          "operation": "",
+          "conditions": [
+            {
+              "questionId": "691c45f14b34d01dcc0ad353",
+              "operator": "EQUALS",
+              "value": [
+                "Hybrid"
+              ]
+            }
+          ],
+          "next": "691c461c4b34d01dcc0ad366",
+          "alwaysGoto": null
+        }
+      ],
+      "formBranchingLogic": [
+        {
+          "operation": "AND",
+          "conditions": [
+            {
+              "questionId": "691c45f14b34d01dcc0ad353",
+              "operator": "EQUALS",
+              "value": "Hybrid"
+            }
+          ],
+          "next": "691c461c4b34d01dcc0ad366"
+        }
+      ],
+      "evidenceReference": null,
+      "testingProcedure": null
+    },
+    {
+      "_id": "691c461c4b34d01dcc0ad366",
+      "questionnaireId": "691c45c24b34d01dcc0ad33a",
+      "type": "single_choice",
+      "text": "Do you have any anty-virus certificate???",
+      "choices": [
+        {
+          "value": "Yes"
+        },
+        {
+          "value": "No"
+        }
+      ],
+      "isEditing": false,
+      "isDeleted": false,
+      "requirements": null,
+      "subRequirements": null,
+      "subControl": null,
+      "userResponse": "Yes",
+      "alwaysGoTo": "691ee43e0c47248f8c8ba2dc",
+      "setting": {},
+      "branchingLogic": [],
+      "formBranchingLogic": [],
+      "evidenceReference": null,
+      "testingProcedure": null
+    },
+    {
+      "_id": "691ee43e0c47248f8c8ba2dc",
+      "questionnaireId": "691c45c24b34d01dcc0ad33a",
+      "type": "file_type",
+      "text": "upload your certificate here ",
+      "choices": [],
+      "isEditing": false,
+      "isDeleted": false,
+      "requirements": null,
+      "subRequirements": null,
+      "subControl": null,
+      "userResponse": "",
+      "alwaysGoTo": "691c45f14b34d01dcc0ad353",
+      "setting": {},
+      "branchingLogic": null,
+      "formBranchingLogic": [],
+      "evidenceReference": null,
+      "testingProcedure": null
+    }
+  ],
+  "projectId": "691c465b4b34d01dcc0ad3de",
+  "assessmentId": ""
+}
