@@ -87,7 +87,7 @@ class QuestionnaireAgent(Agent):
         }
 
         print("\n📤 Sending to backend:", payload)
-        url = "https://13.126.133.4:8001/response"
+        url = "http://13.126.133.4:8001/response"
         #return {'response': [{'content': 'Hybrid.', 'intent': 'Good Response', 'role': 'user'}, {'content': 'Hybrid.', 'intent': 'Select and proceed', 'role': 'assistant'}]}
         async with aiohttp.ClientSession() as session:
             async with session.post(url, json=payload) as resp:
