@@ -67,25 +67,7 @@ class QuestionnaireAgent(Agent):
             json.dumps(payload).encode("utf-8")
         )
 
-    async def handle_file_uploaded(self,msg: dict):
-        print("File uploaded:", msg)
-        file_name = msg.get("fileName")
-        if not file_name:
-            print("❌ No fileName in message")
-            return
-        
-        current_q = self.state.get_current_question()
-        qid_from_msg = msg.get("questionId")
-        if qid_from_msg and current_q.get("_id") != qid_from_msg:
-            print("⚠ file_uploaded questionId does not match current question")
-            
-        if current_q.get("type") != "file_type":
-            print("⚠ Received file_uploaded but current question is not file_type")
-            
-        print(f"📁 Handling file upload for question {current_q.get('_id')} → {file_name}")
-        
-        # You can add logic here to process the uploaded file if needed
-    # ---------------------------------------------------------
+  # ---------------------------------------------------------
     # Push user answer to /response API
     # ---------------------------------------------------------
     async def push_to_backend(self, question, user_answer):
@@ -105,7 +87,7 @@ class QuestionnaireAgent(Agent):
         }
 
         print("\n📤 Sending to backend:", payload)
-        url = "http://127.0.0.1:8001/response"
+        url = "http://13.126.133.4:8001/response"
         #return {'response': [{'content': 'Hybrid.', 'intent': 'Good Response', 'role': 'user'}, {'content': 'Hybrid.', 'intent': 'Select and proceed', 'role': 'assistant'}]}
         async with aiohttp.ClientSession() as session:
             async with session.post(url, json=payload) as resp:
@@ -174,7 +156,7 @@ class QuestionnaireAgent(Agent):
         
         print("📤 Sending /save-response payload:", saveresponsePayload)
         
-        SaveUrl = "http://localhost:8000/api/project/userresponse"
+        SaveUrl = "http://13.126.133.4:8000/api/project/userresponse"
         auth_token = load_token()
         headers = {
             "Authorization": f"Bearer {auth_token}",
@@ -201,7 +183,7 @@ class QuestionnaireAgent(Agent):
 
         evaluate_url = os.getenv(
             "QUESTIONNAIRE_EVALUATE_URL",
-            "http://localhost:8000/api/assesment-task/evaluate"
+            "http://13.126.133.4:8000/api/assesment-task/evaluate"
         )
         
         # Call NEXT QUESTION API
@@ -320,21 +302,7 @@ async def entrypoint(ctx: agents.JobContext):
     
     print("✅ Agent session started")
 
-    @ctx.room.on("data_received")
-    async def on_data_received(data, participant, kind):
-        try:
-             text = data.decode("utf-8") if isinstance(data, (bytes, bytearray)) else str(data)
-             msg = json.loads(text)
-        except Exception as e:
-            print("❌ Failed to parse data_received:", e)
-            return
-
-        if isinstance(msg, dict) and msg.get("type") == "file_uploaded":
-            print("📁 file_uploaded event received in agent:", msg)
-            asyncio.create_task(agent.handle_file_uploaded(msg))
-        else:
-            print("ℹ Ignoring non-file_uploaded data packet:", msg)
-       
+   
     # Give a moment for everything to initialize
     await asyncio.sleep(1)
 

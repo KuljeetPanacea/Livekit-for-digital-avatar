@@ -1,159 +1,3 @@
-# # server.py
-# from fastapi import FastAPI, Request, WebSocket
-# import json, asyncio, subprocess, os, sys
-# from fastapi.middleware.cors import CORSMiddleware
-
-# os.environ["PYTHONIOENCODING"] = "utf-8"
-# os.environ["PYTHONLEGACYWINDOWSSTDIO"] = "1"
-
-# app = FastAPI()
-# connected_clients = set()
-
-# # Allow CORS
-# app.add_middleware(
-#     CORSMiddleware,
-#     allow_origins=["*"],
-#     allow_credentials=True,
-#     allow_methods=["*"],
-#     allow_headers=["*"],
-# )
-
-# agent_process = None
-
-
-# @app.websocket("/ws/logs")
-# async def websocket_logs(ws: WebSocket):
-#     await ws.accept()
-#     connected_clients.add(ws)
-#     print("🟢 WebSocket connected.")
-
-#     try:
-#         while True:
-#             await asyncio.sleep(1)
-#     except:
-#         pass
-#     finally:
-#         connected_clients.remove(ws)
-#         print("🔴 WebSocket disconnected.")
-
-
-# async def broadcast_log(message: str):
-#     for ws in list(connected_clients):
-#         try:
-#             await ws.send_text(message)
-#         except:
-#             connected_clients.remove(ws)
-
-
-# @app.post("/upload-questions")
-# async def upload_questions(request: Request):
-#     global agent_process
-
-#     data = await request.json()
-#     with open("questions.json", "w", encoding="utf-8") as f:
-#         json.dump(data, f, indent=2)
-
-#     # stop existing agent
-#     if agent_process and agent_process.poll() is None:
-#         print("🛑 Stopping existing agent...")
-#         agent_process.terminate()
-#         await asyncio.sleep(1)
-
-#     print("🚀 Starting new LiveKit agent...")
-
-#     agent_process = subprocess.Popen(
-#         [sys.executable, "agent.py", "console"],
-#         stdout=subprocess.PIPE,
-#         stderr=subprocess.STDOUT,
-#         text=True,
-#         encoding="utf-8",
-#         errors="replace",
-#         bufsize=1
-#     )
-
-#     asyncio.create_task(stream_agent_logs(agent_process))
-#     return {"message": "Agent started"}
-
-# async def stream_agent_logs(process):
-#     """
-#     Only extract USER messages from:
-#         "User said: ..."
-#     And forward SYSTEM events from agent.py such as:
-#         {"speaker":"system","type":"first_question","question":{...}}
-#         {"speaker":"system","type":"next_question","question":{...}}
-
-#     Assistant messages ARE NOT extracted from logs.
-#     They are sent manually from 'agent.py'.
-#     """
-
-#     noise_keys = [
-#         "[audio]",
-#         "rtc-version",
-#         "using proactor",
-#         "traceback",
-#         "job runner",
-#         "starting worker",
-#         "initializing",
-#         "none of pytorch",
-#         "debug livekit.plugins.turn_detector",
-#         "eou prediction",
-#         "livekit.plugins.turn_detector",
-#     ]
-
-#     for raw_line in process.stdout:
-#         if raw_line is None:
-#             continue
-
-#         print("RAW_LOG:", raw_line.rstrip())  # Debug log
-
-#         clean = raw_line.strip()
-#         low = clean.lower()
-
-#         if not clean:
-#             continue
-
-#         # Skip noisy internal logs
-#         if any(n in low for n in noise_keys):
-#             continue
-
-#         # ------------------------------------------------
-#         # USER SPEECH (actual STT output)
-#         # ------------------------------------------------
-#         if "user said:" in low:
-#             parts = low.split("user said:", 1)
-#             text = parts[1].strip() if len(parts) > 1 else ""
-
-#             if text:
-#                 await broadcast_log(json.dumps({
-#                     "speaker": "user",
-#                     "text": text
-#                 }))
-#             continue
-
-#         # ------------------------------------------------
-#         # SYSTEM EVENTS FROM agent.py
-#         # (You will send these manually inside agent.py)
-#         #
-#         # Example expected line from agent.py:
-#         # SYSTEM_EVENT: {"type":"first_question", "question": {...}}
-#         # ------------------------------------------------
-#         if clean.startswith("SYSTEM_EVENT:"):
-#             try:
-#                 payload = clean.replace("SYSTEM_EVENT:", "").strip()
-#                 await broadcast_log(payload)
-#                 continue
-#             except Exception as e:
-#                 print("SYSTEM_EVENT parse error:", e)
-#                 continue
-
-#         # ------------------------------------------------
-#         # Everything else ignored
-#         # ------------------------------------------------
-#         continue
-# server.py
-
-
-
 import subprocess
 import sys
 from fastapi import FastAPI, Request ,BackgroundTasks
@@ -162,13 +6,18 @@ from livekit import api
 import json ,os
 import dotenv
 from dotenv import load_dotenv
-load_dotenv()
+load_dotenv()   
 app = FastAPI()
 
 # Allow CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=["http://localhost:5173","https://0.0.0.0:5173",
+    "http://0.0.0.0:5173",
+    "https://0.0.0.0:5174",
+    "https://0.0.0.0:4173",
+    "https://0.0.0.0:4174",
+    "http://0.0.0.0:3000",],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
