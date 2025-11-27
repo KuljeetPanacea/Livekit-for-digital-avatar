@@ -1,42 +1,33 @@
 import subprocess
 import sys
-from fastapi import FastAPI, Request ,BackgroundTasks
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from livekit import api
-import json ,os
-import dotenv
+import json, os
 from dotenv import load_dotenv
-load_dotenv()   
+
+load_dotenv()
 app = FastAPI()
 
-# Allow CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173","https://0.0.0.0:5173",
-    "http://0.0.0.0:5173",
-    "https://0.0.0.0:5174",
-    "https://0.0.0.0:4173",
-    "https://0.0.0.0:4174",
-    "http://0.0.0.0:3000",],
+    allow_origins=["http://localhost:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-LIVEKIT_URL = "https://voicetest-lzl976kv.livekit.cloud"
-API_KEY = "API7kNixTJ6heAg"
-API_SECRET = "P6oxdtEtLwcUodBsziSl0JN685FNXVzjeeplBkuWAUd"
+LIVEKIT_URL = os.getenv("LIVEKIT_URL", "wss://cloud.livekit.io")
+API_KEY = os.getenv("LIVEKIT_API_KEY")
+API_SECRET = os.getenv("LIVEKIT_API_SECRET")
 
+active_sessions = {}
 
-# --------------------------------------------------
-# GET TOKEN for Frontend
-# --------------------------------------------------
 @app.get("/get-token")
-def get_token(identity: str = "anonymous-user", room: str = "survey-room"):
+def get_token(identity: str, room: str):
     """
     Create a valid JWT token for LiveKit Cloud.
     """
-
     token = (
         api.AccessToken(API_KEY, API_SECRET)
         .with_identity(identity)
@@ -59,26 +50,31 @@ def get_token(identity: str = "anonymous-user", room: str = "survey-room"):
     }
 
 
-# --------------------------------------------------
-# UPLOAD QUESTIONS
-# --------------------------------------------------
 @app.post("/upload-questions")
 async def upload_questions(request: Request):
     data = await request.json()
     token = request.headers.get("X-Auth-Token")
-
-    print("🔍 Received token:", token)
+    room_name = data.get("roomName")
     
-    # Save token
-    with open("token.txt", "w", encoding="utf-8") as f:
-        f.write(token)
+    if not room_name:
+        return {"error": "roomName is required"}, 400
 
+    file_path = f"questions_{room_name}.json"
+    token_path = f"token_{room_name}.txt"
 
-    # Save questions
-    with open("questions.json", "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2)
+    with open(file_path, "w") as fq:
+        json.dump(data, fq, indent=2)
 
-    # DETACHED background run (Windows Safe)
+    with open(token_path, "w") as ft:
+        ft.write(token)
+
+    env = dict(os.environ)
+    env.update({
+        "QUESTIONS_FILE": file_path,
+        "TOKEN_FILE": token_path,
+        "TARGET_ROOM": room_name
+    })
+
     DETACHED_PROCESS = 0x00000008
     CREATE_NEW_PROCESS_GROUP = 0x00000200
 
@@ -87,11 +83,10 @@ async def upload_questions(request: Request):
             sys.executable,
             "survey_agent.py",
             "connect",
-            "--room",
-            "survey-room"
+            "--room", room_name
         ],
+        env=env,
         creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP,
-        close_fds=True
     )
 
-    return {"message": "Questions updated and agent started"}
+    return {"message": "Agent started", "room": room_name}
