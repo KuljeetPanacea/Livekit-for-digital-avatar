@@ -9,7 +9,6 @@ print("ENV: TOKEN_FILE =", os.getenv("TOKEN_FILE"))
 print("ENV: QUESTIONS_FILE =", os.getenv("QUESTIONS_FILE"))
 print("ENV: TARGET_ROOM =", os.getenv("TARGET_ROOM"))
 
-# ✅ Read from environment variables
 def load_token():
     token_file = os.getenv("TOKEN_FILE")
     try:
@@ -177,17 +176,16 @@ class QuestionnaireAgent(Agent):
         
         SaveUrl = "http://localhost:8000/api/project/userresponse"
         headers = {
-            "Authorization": f"Bearer {self.auth_token}",  # ✅ Use stored token
+            "Authorization": f"Bearer {self.auth_token}",  
         }
         
         async with aiohttp.ClientSession() as session:
             async with session.patch(SaveUrl, json=saveresponsePayload, headers=headers) as resp:
                 try:
                     save_reply = await resp.json()
-                    print("📥 Save response:", save_reply)
+                    
                 except Exception as e:
                     save_reply = await resp.text()
-                    print("📥 Backend SAVE response TEXT:", save_reply)
                     print("❌ Failed to decode save-response:", e)
 
         # Get next question
@@ -214,31 +212,53 @@ class QuestionnaireAgent(Agent):
                     print("📥 Backend NEXT response JSON:", backend_reply)
                     
                     next_question = backend_reply.get("data")
-                    if next_question:
+                    if next_question and next_question.get("type") == "file_type":
+                        always_id = next_question.get("alwaysGoTo")
+                        if not always_id:
+                            print("❌ file_type has no alwaysGoTo, cannot skip!")
+                            await self.session.say("File upload is required. Stopping flow.")
+                            return True
+                        force_next_payload = {
+                            "assesmentId": self.state.assessment_id,
+                            "questionnaireId": self.state.questionnaire_id,
+                            "currentQuestionId": always_id,
+                            "projectId": self.state.project_id,
+                            "responses": {},
+                        }
+                    
+                        async with aiohttp.ClientSession() as session2:
+                            async with session2.post(evaluate_url, json=force_next_payload, headers=headers) as resp2:
+                                try:
+                                    skip_reply = await resp2.json()
+                                    print("📥 Skip-evaluate reply:", skip_reply)
+                                    next_question = skip_reply.get("data")
+                                except:
+                                    text = await resp2.text()
+                                    print("⚠ Skip-evaluate TEXT:", text)
+                                    return True
                         # Update state
+                    if next_question:
                         self.state.update_question(next_question)
-
-                        # Send to frontend
+                        print("➡ Next question updated in state.")
+                        
+                        # Send next question to frontend
                         await self.send_data({
                             "type": "next_question",
                             "question": next_question
                         })
-
-                        # Speak next question
+                        
                         q_text = next_question.get("text", "")
-                        opts = ", ".join(
-                            c["value"] for c in next_question.get("choices", [])
-                        )
+                        opts = ", ".join(c["value"] for c in next_question.get("choices", []))
                         speak_text = f"{q_text}. Options: {opts}" if opts else q_text
                         await self.session.say(speak_text)
+                    
                     else:
-                        # No more questions
                         await self.send_data({
                             "type": "completed",
                             "message": "No more questions available."
                         })
                         await self.session.say("Thank you for completing the questionnaire.")
-
+                        
                 except Exception as e:
                     backend_reply = await resp.text()
                     print("📥 Backend NEXT response TEXT:", backend_reply)
