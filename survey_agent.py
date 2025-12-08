@@ -207,7 +207,7 @@ class QuestionnaireAgent(Agent):
 
         async with aiohttp.ClientSession() as session:
             async with session.post(evaluate_url, json=next_payload, headers=headers) as resp:
-                try:
+                try:     
                     backend_reply = await resp.json()
                     print("📥 Backend NEXT response JSON:", backend_reply)
                     
@@ -221,9 +221,9 @@ class QuestionnaireAgent(Agent):
                         force_next_payload = {
                             "assesmentId": self.state.assessment_id,
                             "questionnaireId": self.state.questionnaire_id,
-                            "currentQuestionId": always_id,
+                            "currentQuestionId": next_question["_id"],
                             "projectId": self.state.project_id,
-                            "responses": {},
+                            "responses":{next_question["_id"]: []},
                         }
                     
                         async with aiohttp.ClientSession() as session2:
@@ -299,7 +299,7 @@ class QuestionnaireAgent(Agent):
 # ----------------------------------------------------
 # Entrypoint
 # ----------------------------------------------------
-async def entrypoint(ctx: agents.JobContext):
+async def entrypoint(ctx: agents.JobContext):  
     print("🚀 Agent initialized")
     print(f"📍 Room: {ctx.room.name}")
     
