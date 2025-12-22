@@ -54,7 +54,6 @@ class QuestionnaireState:
                     print(f"   ⚠ File not found: {f}")
             except Exception as e:
                 print(f"   ❌ Failed to delete {f}: {e}")
-    
     async def on_session_closed(self, session, reason, error):
         print(f"🔌 on_session_closed → reason={reason}, error={error}")
         await self.cleanup_files()
@@ -73,9 +72,8 @@ class QuestionnaireAgent(Agent):
         super().__init__(instructions="Ask only given questions.")
         self.state = state
         self.ctx = ctx
-        self.auth_token = auth_token
+        self.auth_token = auth_token  # ✅ Store token
         self._session = None
-        self.is_speaking = False  # ✅ Track speaking state for interruptions
 
     @property
     def session(self):
@@ -84,25 +82,6 @@ class QuestionnaireAgent(Agent):
     @session.setter
     def session(self, value):
         self._session = value
-
-    async def on_user_speech_started(self, ctx):
-        """Called when user starts speaking - interrupts agent"""
-        print("🎤 User interrupted - stopping agent speech")
-        if self.is_speaking and self.session:
-            try:
-                self.is_speaking = False
-            except Exception as e:
-                print(f"⚠ Error stopping speech: {e}")
-
-    async def safe_say(self, text):
-        """Wrapper around session.say that tracks speaking state"""
-        try:
-            self.is_speaking = True
-            await self.session.say(text)
-        except Exception as e:
-            print(f"❌ Error in safe_say: {e}")
-        finally:
-            self.is_speaking = False
 
     async def send_data(self, payload: dict):
         await self.ctx.room.local_participant.publish_data(
@@ -142,7 +121,7 @@ class QuestionnaireAgent(Agent):
 
     async def process_backend_response(self, backend_json, question):
         if backend_json is None:
-            await self.safe_say("Sorry, something went wrong.")  # ✅ Changed
+            await self.session.say("Sorry, something went wrong.")
             await self.send_data({
                 "speaker": "assistant",
                 "text": "Sorry, something went wrong."
@@ -155,7 +134,7 @@ class QuestionnaireAgent(Agent):
 
         if not assistant_msg:
             print("❌ Assistant message missing")
-            await self.safe_say("Sorry, could not generate a response.")  # ✅ Changed
+            await self.session.say("Sorry, could not generate a response.")
             return False
 
         content = assistant_msg.get("content", "")
@@ -170,9 +149,10 @@ class QuestionnaireAgent(Agent):
                 "speaker": "assistant",
                 "text": content
             })
-            await self.safe_say(content)  # ✅ Changed
+            await self.session.say(content)
             return False
 
+        # Good intent - save response and get next question
         print("✅ Good Intent → Calling next-question API")
 
         cleaned_answer = content.rstrip(".!?").strip()
@@ -234,10 +214,10 @@ class QuestionnaireAgent(Agent):
                     next_question = backend_reply.get("data")
                     if next_question and next_question.get("type") == "file_type":
                         always_id = next_question.get("alwaysGoTo")
-                        # if not always_id:
-                        #     print("❌ file_type has no alwaysGoTo, cannot skip!")
-                        #     await self.safe_say("File upload is required. Stopping flow.")  # ✅ Changed
-                        #     return True
+                        if not always_id:
+                            print("❌ file_type has no alwaysGoTo, cannot skip!")
+                            await self.session.say("File upload is required. Stopping flow.")
+                            return True
                         force_next_payload = {
                             "assesmentId": self.state.assessment_id,
                             "questionnaireId": self.state.questionnaire_id,
@@ -270,14 +250,14 @@ class QuestionnaireAgent(Agent):
                         q_text = next_question.get("text", "")
                         opts = ", ".join(c["value"] for c in next_question.get("choices", []))
                         speak_text = f"{q_text}. Options: {opts}" if opts else q_text
-                        await self.safe_say(speak_text)  # ✅ Changed
+                        await self.session.say(speak_text)
                     
                     else:
                         await self.send_data({
                             "type": "completed",
                             "message": "No more questions available."
                         })
-                        await self.safe_say("Thank you for completing the questionnaire.")  # ✅ Changed
+                        await self.session.say("Thank you for completing the questionnaire.")
                         
                 except Exception as e:
                     backend_reply = await resp.text()
@@ -323,8 +303,10 @@ async def entrypoint(ctx: agents.JobContext):
     print("🚀 Agent initialized")
     print(f"📍 Room: {ctx.room.name}")
     
+    # ✅ Load from environment variables
     target_room = os.getenv("TARGET_ROOM")
     
+    # Only proceed if this is the correct room
     if target_room and ctx.room.name != target_room:
         print(f"⚠ Skipping room {ctx.room.name} (target: {target_room})")
         return
@@ -345,6 +327,7 @@ async def entrypoint(ctx: agents.JobContext):
     q_state = QuestionnaireState(questions)
     agent = QuestionnaireAgent(q_state, ctx, auth_token)
 
+    # Create session
     session = AgentSession(
         stt=deepgram.STT(model="nova-2", language="en"),
         tts=cartesia.TTS(
@@ -353,9 +336,10 @@ async def entrypoint(ctx: agents.JobContext):
             language="en",
         ),
         vad=silero.VAD.load(
-            min_speech_duration=0.2,  # ✅ Faster detection
-            min_silence_duration=0.5,  # ✅ Quicker response
+            min_speech_duration=0.3,
+            min_silence_duration=0.8,
         ),
+        turn_detection=None,
     )
 
     agent.session = session
@@ -387,7 +371,7 @@ async def entrypoint(ctx: agents.JobContext):
         speak_text += f". Options: {opts}"
     
     print(f"💬 Saying: {speak_text}")
-    await agent.safe_say(speak_text)  # ✅ Changed to safe_say
+    await session.say(speak_text)
     
     # Keep agent alive
     while True:
@@ -403,5 +387,7 @@ if __name__ == "__main__":
             ws_url=os.getenv("LIVEKIT_WS_URL", "wss://cloud.livekit.io"),
             api_key=os.getenv("LIVEKIT_API_KEY"),
             api_secret=os.getenv("LIVEKIT_API_SECRET"),
+            
         )
     )
+
