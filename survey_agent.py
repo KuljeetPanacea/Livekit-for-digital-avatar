@@ -1,3 +1,9 @@
+import json
+import base64
+from Crypto.Cipher import AES
+from Crypto.Hash import MD5
+from Crypto.Util.Padding import pad, unpad
+
 import asyncio, json, os, aiohttp
 import dotenv
 from livekit import agents
@@ -8,6 +14,78 @@ dotenv.load_dotenv(".env")
 print("ENV: TOKEN_FILE =", os.getenv("TOKEN_FILE"))
 print("ENV: QUESTIONS_FILE =", os.getenv("QUESTIONS_FILE"))
 print("ENV: TARGET_ROOM =", os.getenv("TARGET_ROOM"))
+SECRET_KEY = os.getenv("DECRYPT_SECRET_KEY", "my_default_secret")
+def _evp_bytes_to_key(password: bytes, salt: bytes, key_len: int, iv_len: int):
+    """OpenSSL-compatible key derivation (EVP_BytesToKey)"""
+    m = []
+    i = 0
+    while len(b''.join(m)) < (key_len + iv_len):
+        md = MD5.new()
+        data = password + salt
+        if i > 0:
+            data = m[i - 1] + password + salt
+        md.update(data)
+        m.append(md.digest())
+        i += 1
+    ms = b''.join(m)
+    return ms[:key_len], ms[key_len:key_len + iv_len]
+
+
+def encrypt_payload(data: dict, secret: str) -> str:
+    """Encrypt data compatible with CryptoJS.AES.decrypt"""
+    # Convert dict to JSON string
+    plaintext = json.dumps(data)
+    
+    # Generate random salt
+    salt = os.urandom(8)
+    
+    # Derive key and IV using EVP_BytesToKey
+    key, iv = _evp_bytes_to_key(
+        secret.encode('utf-8'),
+        salt,
+        key_len=32,
+        iv_len=16
+    )
+    
+    # Encrypt using AES-256-CBC
+    cipher = AES.new(key, AES.MODE_CBC, iv)
+    ciphertext = cipher.encrypt(pad(plaintext.encode('utf-8'), AES.block_size))
+    
+    # Format: "Salted__" + salt + ciphertext (OpenSSL format)
+    openssl_format = b'Salted__' + salt + ciphertext
+    
+    # Base64 encode
+    return base64.b64encode(openssl_format).decode('utf-8')
+
+
+def decrypt_payload(ciphertext: str, secret: str) -> dict:
+    """Decrypt data from CryptoJS.AES.encrypt"""
+    # Decode base64
+    encrypted_data = base64.b64decode(ciphertext)
+    
+    # Check for "Salted__" prefix
+    if encrypted_data[:8] != b'Salted__':
+        raise ValueError("Invalid encrypted format - missing 'Salted__' prefix")
+    
+    # Extract salt and ciphertext
+    salt = encrypted_data[8:16]
+    ciphertext_bytes = encrypted_data[16:]
+    
+    # Derive key and IV
+    key, iv = _evp_bytes_to_key(
+        secret.encode('utf-8'),
+        salt,
+        key_len=32,
+        iv_len=16
+    )
+    
+    # Decrypt
+    cipher = AES.new(key, AES.MODE_CBC, iv)
+    decrypted = unpad(cipher.decrypt(ciphertext_bytes), AES.block_size)
+    
+    # Parse JSON
+    return json.loads(decrypted.decode('utf-8'))
+
 
 def load_token():
     token_file = os.getenv("TOKEN_FILE")
@@ -170,17 +248,23 @@ class QuestionnaireAgent(Agent):
                 else [user_msg.get("content")]
             ),
             "assessmentId": self.state.assessment_id,
+            "projectId": self.state.project_id,
         }
-        
+        encrypt_payload = encrypt_payload(saveresponsePayload, SECRET_KEY)
         print("📤 Sending /save-response payload:", saveresponsePayload)
         
-        SaveUrl = "http://localhost:8000/api/project/userresponse"
+        SaveUrl = ""
+        if self.state.assessment_id:
+            SaveUrl = "http://localhost:8000/api/assesment-task/userresponse"
+        else:
+            SaveUrl = "http://localhost:8000/api/project/userresponse"
+      
         headers = {
             "Authorization": f"Bearer {self.auth_token}",  
         }
         
         async with aiohttp.ClientSession() as session:
-            async with session.patch(SaveUrl, json=saveresponsePayload, headers=headers) as resp:
+            async with session.patch(SaveUrl, json={"payload": encrypt_payload}, headers=headers) as resp:
                 try:
                     save_reply = await resp.json()
                     
@@ -199,16 +283,27 @@ class QuestionnaireAgent(Agent):
         }
 
         print("📤 Sending /next-question payload:", next_payload)
-
-        evaluate_url = os.getenv(
-            "QUESTIONNAIRE_EVALUATE_URL",
-            "http://localhost:8000/api/assesment-task/evaluate"
-        )
-
+        encrypted = encrypt_payload(next_payload, SECRET_KEY)
+        evaluate_url  = ""
+        if self.state.assessment_id:
+            evaluate_url = os.getenv(
+                "QUESTIONNAIRE_EVALUATE_URL",
+                "http://localhost:8000/api/assesment-task/evaluate"
+            )
+        else:
+            evaluate_url = os.getenv(
+                "QUESTIONNAIRE_EVALUATE_URL",
+                "http://localhost:8000/api/project/evaluate"
+            )  
+     
         async with aiohttp.ClientSession() as session:
-            async with session.post(evaluate_url, json=next_payload, headers=headers) as resp:
+            async with session.post(evaluate_url,json={"payload": encrypted}, headers=headers) as resp:
                 try:     
-                    backend_reply = await resp.json()
+                    encrypted_resp = await resp.json()
+                    if "payload" not in encrypted_resp:
+                        print("❌ Backend returned non-encrypted response:", encrypted_resp)
+                        return True
+                    backend_reply = decrypt_payload(encrypted_resp["payload"], SECRET_KEY)
                     print("📥 Backend NEXT response JSON:", backend_reply)
                     
                     next_question = backend_reply.get("data")
@@ -225,15 +320,19 @@ class QuestionnaireAgent(Agent):
                             "projectId": self.state.project_id,
                             "responses":{next_question["_id"]: []},
                         }
+                        
+                        encrypted = encrypt_payload(force_next_payload, SECRET_KEY)
                     
                         async with aiohttp.ClientSession() as session2:
-                            async with session2.post(evaluate_url, json=force_next_payload, headers=headers) as resp2:
+                            async with session2.post(evaluate_url, json={"payload": encrypted}, headers=headers) as resp2:
                                 try:
-                                    skip_reply = await resp2.json()
+                                    decrypted_skip_reply = await resp2.json()
+                                    skip_reply = decrypt_payload(decrypted_skip_reply["payload"], SECRET_KEY)
                                     print("📥 Skip-evaluate reply:", skip_reply)
                                     next_question = skip_reply.get("data")
                                 except:
-                                    text = await resp2.text()
+                                    decrypt_text = await resp2.text()
+                                    text = decrypt_payload(decrypt_text["payload"], SECRET_KEY)
                                     print("⚠ Skip-evaluate TEXT:", text)
                                     return True
                         # Update state
@@ -260,7 +359,8 @@ class QuestionnaireAgent(Agent):
                         await self.session.say("Thank you for completing the questionnaire.")
                         
                 except Exception as e:
-                    backend_reply = await resp.text()
+                    decrypt_backend_reply = await resp.text()
+                    backend_reply = decrypt_payload(decrypt_backend_reply, SECRET_KEY)                    
                     print("📥 Backend NEXT response TEXT:", backend_reply)
                     print("❌ Failed to decode next-question:", e)
 
