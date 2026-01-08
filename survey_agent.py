@@ -302,7 +302,7 @@ class QuestionnaireAgent(Agent):
         else:
             evaluate_url = os.getenv(
                 "QUESTIONNAIRE_EVALUATE_URL",
-                "http://localhost:8000/api/project/evaluate"
+                "http://localhost:8000/api/assesment-task/evaluate"
             )  
 
         async with aiohttp.ClientSession() as session:
