@@ -114,9 +114,19 @@ class QuestionnaireState:
         self.questionnaire = questionnaire
         self.questions = questionnaire["questions"]
         self.current_question = self.questions[0]
-        self.project_id = questionnaire["projectId"]
-        self.assessment_id = questionnaire["assessmentId"]
-        self.questionnaire_id = questionnaire["id"]
+        self.project_id = questionnaire.get("projectId")
+        self.assessment_id = questionnaire.get("assessmentId")
+        self.questionnaire_id = questionnaire.get("id")
+        self.phase = questionnaire.get("phase", "")
+        self.current_audit_stage = questionnaire.get("currentAuditStage", "")
+
+    def is_scoping_questionnaire(self):
+        """Scoping questionnaires live in project.scopingQSTRNRData; assessment questionnaires in assessment.task."""
+        if self.phase == "Scoping":
+            return True
+        if self.phase == "Assessment" and self.assessment_id:
+            return False
+        return self.current_audit_stage != "assessment"
 
     async def cleanup_files(self):
         token_file = os.getenv("TOKEN_FILE")
@@ -254,7 +264,9 @@ class QuestionnaireAgent(Agent):
         
         
         SaveUrl = ""
-        if self.state.assessment_id:
+        if self.state.is_scoping_questionnaire():
+            SaveUrl = "http://localhost:8000/api/project/userresponse"
+        elif self.state.assessment_id:
             SaveUrl = "http://localhost:8000/api/assesment-task/userresponse"
         else:
             SaveUrl = "http://localhost:8000/api/project/userresponse"
@@ -292,18 +304,12 @@ class QuestionnaireAgent(Agent):
 
         print("📤 Sending /next-question payload:", next_payload)
         encrypted = encrypt_payload(next_payload, SECRET_KEY)
-        
-        evaluate_url  = ""
-        if self.state.assessment_id:
-            evaluate_url = os.getenv(
-                "QUESTIONNAIRE_EVALUATE_URL",
-                "http://localhost:8000/api/assesment-task/evaluate"
-            )
-        else:
-            evaluate_url = os.getenv(
-                "QUESTIONNAIRE_EVALUATE_URL",
-                "http://localhost:8000/api/assesment-task/evaluate"
-            )  
+
+        # Evaluate: single endpoint; backend routes by role (AE POC → project, AE Internal Assessor → assessment)
+        evaluate_url = os.getenv(
+            "QUESTIONNAIRE_EVALUATE_URL",
+            "http://localhost:8000/api/assesment-task/evaluate"
+        )  
 
         async with aiohttp.ClientSession() as session:
             async with session.post(evaluate_url, json={"payload": encrypted}, headers=headers) as resp:
