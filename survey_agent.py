@@ -322,7 +322,7 @@ class QuestionnaireAgent(Agent):
                     print("📥 Backend NEXT response JSON:", backend_reply)
                     
                     next_question = backend_reply.get("data")
-                    if next_question and next_question.get("type") == "file_type":
+                    while next_question and next_question.get("type") == "file_type":
                         always_id = next_question.get("alwaysGoTo")
                         if not always_id:
                             print("❌ file_type has no alwaysGoTo, cannot skip!")
@@ -335,13 +335,17 @@ class QuestionnaireAgent(Agent):
                             "projectId": self.state.project_id,
                             "responses":{next_question["_id"]: []},
                         }
-                    
+                        encrypted_skip = encrypt_payload(force_next_payload, SECRET_KEY)
                         async with aiohttp.ClientSession() as session2:
-                            async with session2.post(evaluate_url, json=force_next_payload, headers=headers) as resp2:
+                            async with session2.post(evaluate_url, json={"payload": encrypted_skip}, headers=headers) as resp2:
                                 try:
-                                    skip_reply = await resp2.json()
+                                    skip_json = await resp2.json()
+                                    if "payload" not in skip_json:
+                                        print("❌ Invalid skip response:", skip_json)
+                                        return True
+                                    skip_reply = decrypt_payload(skip_json["payload"], SECRET_KEY)
                                     print("📥 Skip-evaluate reply:", skip_reply)
-                                    next_question = skip_reply.get("data")
+                                    next_question = skip_json.get("data")
                                 except:
                                     text = await resp2.text()
                                     print("⚠ Skip-evaluate TEXT:", text)
