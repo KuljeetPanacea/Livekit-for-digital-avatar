@@ -346,7 +346,7 @@ class QuestionnaireAgent(Agent):
                                         return True
                                     skip_reply = decrypt_payload(skip_json["payload"], SECRET_KEY)
                                     print("📥 Skip-evaluate reply:", skip_reply)
-                                    next_question = skip_json.get("data")
+                                    next_question = skip_reply.get("data")
                                 except:
                                     text = await resp2.text()
                                     print("⚠ Skip-evaluate TEXT:", text)
