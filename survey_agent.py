@@ -258,7 +258,8 @@ class QuestionnaireAgent(Agent):
                 else [user_msg.get("content")]
             ),
             "assessmentId": self.state.assessment_id,
-            "projectId": self.state.project_id
+            "projectId": self.state.project_id,
+            "questionnaireId": self.state.questionnaire_id
         }
         encrypt_saveresponsePayload = encrypt_payload(saveresponsePayload, SECRET_KEY)
         
