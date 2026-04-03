@@ -327,8 +327,7 @@ class QuestionnaireAgent(Agent):
                         always_id = next_question.get("alwaysGoTo")
                         if not always_id:
                             print("❌ file_type has no alwaysGoTo, cannot skip!")
-                            await self.session.say("File upload is required. Stopping flow.")
-                            return True
+                            return False
                         force_next_payload = {
                             "assesmentId": self.state.assessment_id,
                             "questionnaireId": self.state.questionnaire_id,
