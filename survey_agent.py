@@ -189,7 +189,7 @@ class QuestionnaireAgent(Agent):
             "possible_responses": possible,
             "user_comment": user_answer,
             "additional_knowledge": "",
-            "question_explaination": "",
+            "question_explanation": "",
             "chatHistory": []
         }
 
