@@ -326,6 +326,11 @@ class QuestionnaireAgent(Agent):
                     while next_question and next_question.get("type") == "file_type":
                         always_id = next_question.get("alwaysGoTo")
                         if not always_id:
+                            await self.send_data({
+                            "type": "completed",
+                            "message": "No more questions available."
+                            })
+                            await self.session.say("Thank you for completing the questionnaire.")
                             print("❌ file_type has no alwaysGoTo, cannot skip!")
                             return False
                         force_next_payload = {
