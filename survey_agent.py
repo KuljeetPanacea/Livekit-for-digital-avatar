@@ -302,7 +302,7 @@ class QuestionnaireAgent(Agent):
             "projectId": self.state.project_id,
             "responses": {current_q["_id"]: formatted},
         }
-
+        await asyncio.sleep(1)
         print("📤 Sending /next-question payload:", next_payload)
         encrypted = encrypt_payload(next_payload, SECRET_KEY)
 
